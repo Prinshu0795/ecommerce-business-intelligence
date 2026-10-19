@@ -54,6 +54,8 @@ class DatabaseManager:
 
         # Fallback to DuckDB
         PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        self._ensure_duckdb_populated()
+
         if DUCKDB_PATH.exists() and self.read_only:
             try:
                 self._duck_conn = duckdb.connect(str(DUCKDB_PATH), read_only=True)
@@ -64,6 +66,28 @@ class DatabaseManager:
 
         self.active_backend = "duckdb"
         logger.info(f"Active database backend: DuckDB ({DUCKDB_PATH})")
+
+    def _ensure_duckdb_populated(self):
+        """Ensure DuckDB file exists and fact_order is queryable. If not, auto-execute ETL."""
+        needs_etl = False
+        if not DUCKDB_PATH.exists() or DUCKDB_PATH.stat().st_size == 0:
+            needs_etl = True
+        else:
+            try:
+                test_conn = duckdb.connect(str(DUCKDB_PATH), read_only=True)
+                test_conn.execute("SELECT 1 FROM fact_order LIMIT 1;")
+                test_conn.close()
+            except Exception:
+                needs_etl = True
+
+        if needs_etl:
+            logger.info("DuckDB database tables not found. Automatically running ETL pipeline from CSV dataset...")
+            try:
+                from src.database.load_database import run_etl_pipeline
+                run_etl_pipeline()
+                logger.info("ETL pipeline completed successfully during database initialization.")
+            except Exception as e:
+                logger.error(f"Failed to auto-populate DuckDB: {e}")
 
     def execute_query(self, sql: str, params: Optional[dict] = None) -> Any:
         """Execute a DDL or DML statement."""
