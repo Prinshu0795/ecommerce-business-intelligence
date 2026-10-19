@@ -23,6 +23,10 @@ logger = logging.getLogger(__name__)
 
 
 import re
+import threading
+
+_INIT_LOCK = threading.Lock()
+_DB_INITIALIZING = False
 
 class DatabaseManager:
     """Manages database engines and connections with automatic fallback."""
@@ -69,6 +73,10 @@ class DatabaseManager:
 
     def _ensure_duckdb_populated(self):
         """Ensure DuckDB file exists and fact_order is queryable. If not, auto-execute ETL."""
+        global _DB_INITIALIZING
+        if _DB_INITIALIZING:
+            return
+
         needs_etl = False
         if not DUCKDB_PATH.exists() or DUCKDB_PATH.stat().st_size == 0:
             needs_etl = True
@@ -81,13 +89,28 @@ class DatabaseManager:
                 needs_etl = True
 
         if needs_etl:
-            logger.info("DuckDB database tables not found. Automatically running ETL pipeline from CSV dataset...")
-            try:
-                from src.database.load_database import run_etl_pipeline
-                run_etl_pipeline()
-                logger.info("ETL pipeline completed successfully during database initialization.")
-            except Exception as e:
-                logger.error(f"Failed to auto-populate DuckDB: {e}")
+            with _INIT_LOCK:
+                if _DB_INITIALIZING:
+                    return
+                if DUCKDB_PATH.exists() and DUCKDB_PATH.stat().st_size > 0:
+                    try:
+                        test_conn = duckdb.connect(str(DUCKDB_PATH), read_only=True)
+                        test_conn.execute("SELECT 1 FROM fact_order LIMIT 1;")
+                        test_conn.close()
+                        return
+                    except Exception:
+                        pass
+
+                _DB_INITIALIZING = True
+                try:
+                    logger.info("DuckDB database tables not found. Automatically running ETL pipeline from CSV dataset...")
+                    from src.database.load_database import run_etl_pipeline
+                    run_etl_pipeline()
+                    logger.info("ETL pipeline completed successfully during database initialization.")
+                except Exception as e:
+                    logger.error(f"Failed to auto-populate DuckDB: {e}")
+                finally:
+                    _DB_INITIALIZING = False
 
     def execute_query(self, sql: str, params: Optional[dict] = None) -> Any:
         """Execute a DDL or DML statement."""

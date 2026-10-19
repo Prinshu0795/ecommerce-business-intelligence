@@ -19,7 +19,6 @@ ENV/
 .venv/
 
 # Database files & storage
-data/processed/*.duckdb
 data/processed/*.db
 data/processed/*.sqlite
 pgdata/
