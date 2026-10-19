@@ -1,0 +1,23 @@
+# E-Commerce Business Intelligence & Customer Analytics Platform
+# Dependencies
+
+# Core Data Processing & Analytics
+pandas>=2.2.0
+numpy>=1.26.0
+scipy>=1.13.0
+scikit-learn>=1.4.0
+xgboost>=2.0.0
+statsmodels>=0.14.0
+
+# Database & SQL
+sqlalchemy>=2.0.0
+psycopg[binary]>=3.1.0
+duckdb>=1.0.0
+
+# Interactive Dashboard & Visualization
+streamlit>=1.35.0
+plotly>=5.22.0
+
+# Development, Testing & Utilities
+python-dotenv>=1.0.0
+pytest>=8.2.0
